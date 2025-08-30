@@ -1,39 +1,23 @@
+import { db } from '../db';
+import { achievementsTable } from '../db/schema';
 import { type Achievement, type PlayerIdParam } from '../schema';
+import { eq, desc } from 'drizzle-orm';
 
-export async function getPlayerAchievements(params: PlayerIdParam): Promise<Achievement[]> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is fetching all achievements unlocked by a specific player
-    // for display in their profile and progress tracking.
-    return Promise.resolve([
-        {
-            id: 1,
-            player_id: params.playerId,
-            achievement_type: "milestone",
-            title: "First Business",
-            description: "Started your first business venture",
-            icon: "🏢",
-            experience_reward: 100,
-            unlocked_at: new Date()
-        },
-        {
-            id: 2,
-            player_id: params.playerId,
-            achievement_type: "milestone",
-            title: "Wealth Builder",
-            description: "Accumulated $50,000 in total wealth",
-            icon: "💰",
-            experience_reward: 250,
-            unlocked_at: new Date()
-        },
-        {
-            id: 3,
-            player_id: params.playerId,
-            achievement_type: "streak",
-            title: "Consistent Growth",
-            description: "Achieved positive growth for 5 consecutive months",
-            icon: "📈",
-            experience_reward: 200,
-            unlocked_at: new Date()
-        }
-    ] as Achievement[]);
-}
+export const getPlayerAchievements = async (params: PlayerIdParam): Promise<Achievement[]> => {
+  try {
+    const results = await db.select()
+      .from(achievementsTable)
+      .where(eq(achievementsTable.player_id, params.playerId))
+      .orderBy(desc(achievementsTable.unlocked_at))
+      .execute();
+
+    // Convert the results to match the expected Achievement type
+    return results.map(achievement => ({
+      ...achievement,
+      // No numeric conversions needed - all fields are already correct types
+    }));
+  } catch (error) {
+    console.error('Failed to fetch player achievements:', error);
+    throw error;
+  }
+};

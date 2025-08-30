@@ -1,17 +1,26 @@
+import { db } from '../db';
+import { playersTable } from '../db/schema';
+import { eq } from 'drizzle-orm';
 import { type Player, type PlayerIdParam } from '../schema';
 
-export async function getPlayer(params: PlayerIdParam): Promise<Player> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is fetching a specific player by ID from the database
-    // including their current stats and profile information.
-    return Promise.resolve({
-        id: params.playerId,
-        username: "placeholder_user",
-        email: "placeholder@example.com",
-        total_wealth: 50000.00,
-        experience_points: 1250,
-        level: 3,
-        created_at: new Date(),
-        last_active: new Date()
-    } as Player);
-}
+export const getPlayer = async (params: PlayerIdParam): Promise<Player> => {
+  try {
+    const result = await db.select()
+      .from(playersTable)
+      .where(eq(playersTable.id, params.playerId))
+      .execute();
+
+    if (result.length === 0) {
+      throw new Error(`Player with id ${params.playerId} not found`);
+    }
+
+    const player = result[0];
+    return {
+      ...player,
+      total_wealth: parseFloat(player.total_wealth), // Convert numeric to number
+    };
+  } catch (error) {
+    console.error('Get player failed:', error);
+    throw error;
+  }
+};

@@ -1,22 +1,26 @@
+import { db } from '../db';
+import { businessesTable } from '../db/schema';
 import { type Business, type PlayerIdParam } from '../schema';
+import { eq, desc } from 'drizzle-orm';
 
-export async function getPlayerBusinesses(params: PlayerIdParam): Promise<Business[]> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is fetching all businesses owned by a specific player
-    // from the database, including their current financial performance.
-    return Promise.resolve([
-        {
-            id: 1,
-            player_id: params.playerId,
-            name: "Tech Startup",
-            industry: "technology",
-            monthly_income: 15000.00,
-            monthly_expenses: 8000.00,
-            employee_count: 5,
-            growth_rate: 0.15,
-            market_share: 0.02,
-            is_active: true,
-            created_at: new Date()
-        }
-    ] as Business[]);
-}
+export const getPlayerBusinesses = async (params: PlayerIdParam): Promise<Business[]> => {
+  try {
+    const results = await db.select()
+      .from(businessesTable)
+      .where(eq(businessesTable.player_id, params.playerId))
+      .orderBy(desc(businessesTable.created_at))
+      .execute();
+
+    // Convert numeric fields back to numbers before returning
+    return results.map(business => ({
+      ...business,
+      monthly_income: parseFloat(business.monthly_income),
+      monthly_expenses: parseFloat(business.monthly_expenses),
+      growth_rate: parseFloat(business.growth_rate),
+      market_share: parseFloat(business.market_share)
+    }));
+  } catch (error) {
+    console.error('Failed to fetch player businesses:', error);
+    throw error;
+  }
+};

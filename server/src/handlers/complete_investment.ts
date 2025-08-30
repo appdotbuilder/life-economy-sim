@@ -1,23 +1,69 @@
+import { db } from '../db';
+import { investmentsTable, playersTable } from '../db/schema';
 import { type CompleteInvestmentInput, type Investment } from '../schema';
+import { eq } from 'drizzle-orm';
 
-export async function completeInvestment(input: CompleteInvestmentInput): Promise<Investment> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is completing an investment by setting its actual return,
-    // updating player wealth, and marking the investment as completed.
-    return Promise.resolve({
-        id: input.id,
-        player_id: 1, // Placeholder player ID
-        business_id: null,
-        investment_type: "stocks",
-        title: "Completed Investment",
-        description: "Investment that has reached maturity",
-        amount_invested: 10000.00,
-        expected_return: 1500.00,
-        actual_return: input.actual_return,
-        risk_level: 5,
-        duration_months: 6,
+export const completeInvestment = async (input: CompleteInvestmentInput): Promise<Investment> => {
+  try {
+    // First, get the investment details
+    const investmentResults = await db.select()
+      .from(investmentsTable)
+      .where(eq(investmentsTable.id, input.id))
+      .execute();
+
+    if (investmentResults.length === 0) {
+      throw new Error(`Investment with id ${input.id} not found`);
+    }
+
+    const investment = investmentResults[0];
+
+    if (investment.is_completed) {
+      throw new Error(`Investment with id ${input.id} is already completed`);
+    }
+
+    // Update the investment with actual return and completion status
+    const updateResult = await db.update(investmentsTable)
+      .set({
+        actual_return: input.actual_return.toString(),
         is_completed: true,
-        created_at: new Date(),
         completed_at: new Date()
-    } as Investment);
-}
+      })
+      .where(eq(investmentsTable.id, input.id))
+      .returning()
+      .execute();
+
+    const completedInvestment = updateResult[0];
+
+    // Get current player wealth
+    const playerResults = await db.select()
+      .from(playersTable)
+      .where(eq(playersTable.id, investment.player_id))
+      .execute();
+
+    if (playerResults.length === 0) {
+      throw new Error(`Player with id ${investment.player_id} not found`);
+    }
+
+    const currentWealth = parseFloat(playerResults[0].total_wealth);
+    const newWealth = currentWealth + input.actual_return;
+
+    // Update player's total wealth with the actual return
+    await db.update(playersTable)
+      .set({
+        total_wealth: newWealth.toString()
+      })
+      .where(eq(playersTable.id, investment.player_id))
+      .execute();
+
+    // Return the completed investment with numeric conversions
+    return {
+      ...completedInvestment,
+      amount_invested: parseFloat(completedInvestment.amount_invested),
+      expected_return: parseFloat(completedInvestment.expected_return),
+      actual_return: parseFloat(completedInvestment.actual_return)
+    };
+  } catch (error) {
+    console.error('Investment completion failed:', error);
+    throw error;
+  }
+};

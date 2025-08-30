@@ -1,17 +1,48 @@
+import { db } from '../db';
+import { playersTable } from '../db/schema';
 import { type UpdatePlayerInput, type Player } from '../schema';
+import { eq } from 'drizzle-orm';
 
-export async function updatePlayer(input: UpdatePlayerInput): Promise<Player> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is updating player stats like wealth, experience,
-    // level, and last_active timestamp in the database.
-    return Promise.resolve({
-        id: input.id,
-        username: "placeholder_user",
-        email: "placeholder@example.com",
-        total_wealth: input.total_wealth || 50000.00,
-        experience_points: input.experience_points || 1250,
-        level: input.level || 3,
-        created_at: new Date(),
-        last_active: input.last_active || new Date()
-    } as Player);
-}
+export const updatePlayer = async (input: UpdatePlayerInput): Promise<Player> => {
+  try {
+    // Build update object with only the fields that are provided
+    const updateData: any = {};
+    
+    if (input.total_wealth !== undefined) {
+      updateData.total_wealth = input.total_wealth.toString(); // Convert number to string for numeric column
+    }
+    
+    if (input.experience_points !== undefined) {
+      updateData.experience_points = input.experience_points;
+    }
+    
+    if (input.level !== undefined) {
+      updateData.level = input.level;
+    }
+    
+    if (input.last_active !== undefined) {
+      updateData.last_active = input.last_active;
+    }
+
+    // Update the player record
+    const result = await db.update(playersTable)
+      .set(updateData)
+      .where(eq(playersTable.id, input.id))
+      .returning()
+      .execute();
+
+    if (result.length === 0) {
+      throw new Error(`Player with id ${input.id} not found`);
+    }
+
+    // Convert numeric fields back to numbers before returning
+    const player = result[0];
+    return {
+      ...player,
+      total_wealth: parseFloat(player.total_wealth) // Convert string back to number
+    };
+  } catch (error) {
+    console.error('Player update failed:', error);
+    throw error;
+  }
+};

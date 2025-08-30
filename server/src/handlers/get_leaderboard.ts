@@ -1,84 +1,61 @@
+import { db } from '../db';
+import { playersTable, businessesTable } from '../db/schema';
 import { type Leaderboard, type PaginationParams } from '../schema';
+import { desc, count, eq, sql } from 'drizzle-orm';
 
-export async function getLeaderboard(pagination: PaginationParams): Promise<Leaderboard> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is fetching the global leaderboard showing top players
-    // ranked by total wealth with their business count and other key metrics.
-    return Promise.resolve([
-        {
-            rank: 1,
-            player: {
-                id: 1,
-                username: "EconMaster",
-                email: "master@lifeeconomy.com",
-                total_wealth: 2500000.00,
-                experience_points: 50000,
-                level: 25,
-                created_at: new Date(),
-                last_active: new Date()
-            },
-            total_wealth: 2500000.00,
-            business_count: 15
-        },
-        {
-            rank: 2,
-            player: {
-                id: 2,
-                username: "BusinessTycoon",
-                email: "tycoon@lifeeconomy.com",
-                total_wealth: 1800000.00,
-                experience_points: 38000,
-                level: 22,
-                created_at: new Date(),
-                last_active: new Date()
-            },
-            total_wealth: 1800000.00,
-            business_count: 12
-        },
-        {
-            rank: 3,
-            player: {
-                id: 3,
-                username: "InvestorPro",
-                email: "investor@lifeeconomy.com",
-                total_wealth: 1200000.00,
-                experience_points: 28000,
-                level: 18,
-                created_at: new Date(),
-                last_active: new Date()
-            },
-            total_wealth: 1200000.00,
-            business_count: 8
-        },
-        {
-            rank: 4,
-            player: {
-                id: 4,
-                username: "StartupKing",
-                email: "startup@lifeeconomy.com",
-                total_wealth: 950000.00,
-                experience_points: 22000,
-                level: 16,
-                created_at: new Date(),
-                last_active: new Date()
-            },
-            total_wealth: 950000.00,
-            business_count: 10
-        },
-        {
-            rank: 5,
-            player: {
-                id: 5,
-                username: "WealthBuilder",
-                email: "wealth@lifeeconomy.com",
-                total_wealth: 750000.00,
-                experience_points: 18000,
-                level: 14,
-                created_at: new Date(),
-                last_active: new Date()
-            },
-            total_wealth: 750000.00,
-            business_count: 6
-        }
-    ].slice(0, pagination.limit));
-}
+export const getLeaderboard = async (pagination: PaginationParams): Promise<Leaderboard> => {
+  try {
+    // Calculate offset for pagination
+    const offset = (pagination.page - 1) * pagination.limit;
+
+    // Query to get players with their business count, ordered by total wealth
+    const results = await db
+      .select({
+        player_id: playersTable.id,
+        username: playersTable.username,
+        email: playersTable.email,
+        total_wealth: playersTable.total_wealth,
+        experience_points: playersTable.experience_points,
+        level: playersTable.level,
+        created_at: playersTable.created_at,
+        last_active: playersTable.last_active,
+        business_count: count(businessesTable.id),
+      })
+      .from(playersTable)
+      .leftJoin(businessesTable, eq(playersTable.id, businessesTable.player_id))
+      .groupBy(
+        playersTable.id,
+        playersTable.username,
+        playersTable.email,
+        playersTable.total_wealth,
+        playersTable.experience_points,
+        playersTable.level,
+        playersTable.created_at,
+        playersTable.last_active
+      )
+      .orderBy(desc(playersTable.total_wealth))
+      .limit(pagination.limit)
+      .offset(offset)
+      .execute();
+
+    // Transform results to match the Leaderboard schema
+    return results.map((result, index) => ({
+      rank: offset + index + 1,
+      player: {
+        id: result.player_id,
+        username: result.username,
+        email: result.email,
+        total_wealth: parseFloat(result.total_wealth),
+        experience_points: result.experience_points,
+        level: result.level,
+        created_at: result.created_at,
+        last_active: result.last_active,
+      },
+      total_wealth: parseFloat(result.total_wealth),
+      business_count: result.business_count,
+    }));
+  } catch (error) {
+    console.error('Leaderboard retrieval failed:', error);
+    throw error;
+  }
+};

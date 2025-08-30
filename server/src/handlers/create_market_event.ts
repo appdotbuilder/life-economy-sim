@@ -1,21 +1,34 @@
+import { db } from '../db';
+import { marketEventsTable } from '../db/schema';
 import { type CreateMarketEventInput, type MarketEvent } from '../schema';
 
-export async function createMarketEvent(input: CreateMarketEventInput): Promise<MarketEvent> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is creating new AI-driven market events that will
-    // impact the economy and player businesses for a specified duration.
+export const createMarketEvent = async (input: CreateMarketEventInput): Promise<MarketEvent> => {
+  try {
+    // Calculate expiration date based on duration
     const expiresAt = new Date(Date.now() + input.duration_hours * 60 * 60 * 1000);
-    
-    return Promise.resolve({
-        id: 0, // Placeholder ID
+
+    // Insert market event record
+    const result = await db.insert(marketEventsTable)
+      .values({
         title: input.title,
         description: input.description,
         event_type: input.event_type,
-        impact_magnitude: input.impact_magnitude,
+        impact_magnitude: input.impact_magnitude.toString(), // Convert number to string for numeric column
         affected_industry: input.affected_industry,
         duration_hours: input.duration_hours,
-        is_active: true,
-        created_at: new Date(),
-        expires_at: expiresAt
-    } as MarketEvent);
-}
+        expires_at: expiresAt,
+      })
+      .returning()
+      .execute();
+
+    // Convert numeric fields back to numbers before returning
+    const marketEvent = result[0];
+    return {
+      ...marketEvent,
+      impact_magnitude: parseFloat(marketEvent.impact_magnitude), // Convert string back to number
+    };
+  } catch (error) {
+    console.error('Market event creation failed:', error);
+    throw error;
+  }
+};
